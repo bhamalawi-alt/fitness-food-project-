@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ MENU / PRODUCTS ============
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  description String
+  category    String // breakfast | main | snack | salad
+  calories    Int
+  protein     Int // grams
+  carbs       Int // grams
+  fat         Int // grams
+  price       Float
+  emoji       String @default("🍽️")
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+}
+
+// ============ CRM: CLIENTS ============
+model Client {
+  id            String         @id @default(cuid())
+  name          String
+  phone         String         @unique
+  email         String?
+  address       String?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  orders        Order[]
+  subscriptions Subscription[]
+}
+
+// ============ MONTHLY SUBSCRIPTION PLANS ============
+model SubscriptionPlan {
+  id             String         @id @default(cuid())
+  name           String
+  description    String
+  emoji          String         @default("📦")
+  mealsPerDay    Int            @default(2)
+  daysPerMonth   Int            @default(22) // 30 = every day, 22 = weekdays (Sun–Thu)
+  targetCalories Int            @default(1500)
+  monthlyPrice   Float
+  features       String         @default("") // pipe-separated feature list
+  isActive       Boolean        @default(true)
+  sortOrder      Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  subscriptions  Subscription[]
+}
+
+// ============ CLIENT SUBSCRIPTIONS ============
+model Subscription {
+  id             String            @id @default(cuid())
+  reference      String            @unique // FS-1001
+  clientId       String
+  planId         String
+  status         String            @default("active") // active | paused | cancelled
+  paymentStatus  String            @default("unpaid") // unpaid | paid
+  startDate      DateTime          @default(now())
+  renewalDate    DateTime
+  price          Float // snapshot of plan monthly price
+  mealsPerDay    Int // snapshot
+  targetCalories Int // snapshot
+  notes          String?
+  paidAt         DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  client         Client            @relation(fields: [clientId], references: [id])
+  plan           SubscriptionPlan  @relation(fields: [planId], references: [id])
+  orders         Order[]
+  meals          SubscriptionMeal[]
+}
+
+// ============ MEALS THE CLIENT CHOSE FOR A SUBSCRIPTION ============
+// Snapshot rows created when the client picks their meals after choosing
+// a plan — menu edits/deletions never corrupt the client's selection history.
+model SubscriptionMeal {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  productId      String?
+  name           String
+  emoji          String       @default("🍽️")
+  category       String       @default("main")
+  calories       Int
+  protein        Int          @default(0)
+  carbs          Int          @default(0)
+  fat            Int          @default(0)
+  createdAt      DateTime     @default(now())
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+// ============ SALES ORDERS ============
+model Order {
+  id             String        @id @default(cuid())
+  orderNumber    String        @unique
+  clientId       String
+  status         String        @default("pending") // pending | confirmed | preparing | delivering | delivered | cancelled
+  paymentMethod  String        @default("cod") // cod | card | wallet | sub
+  paymentStatus  String        @default("unpaid") // unpaid | paid
+  subtotal       Float
+  deliveryFee    Float         @default(0)
+  discount       Float         @default(0)
+  total          Float
+  totalCalories  Int           @default(0)
+  notes          String?
+  subscriptionId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  client         Client        @relation(fields: [clientId], references: [id])
+  items          OrderItem[]
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String?
+  productName String
+  emoji       String   @default("🍽️")
+  category    String   @default("main")
+  unitPrice   Float
+  quantity    Int
+  lineTotal   Float
+  calories    Int
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
