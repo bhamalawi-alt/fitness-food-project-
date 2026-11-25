@@ -1,0 +1,10 @@
+import { PrismaClient } from '@prisma/client'
+const db = new PrismaClient()
+const plans = await db.subscriptionPlan.findMany({ orderBy: { sortOrder: 'asc' } })
+console.log('PLANS:')
+for (const p of plans) console.log(`  ${p.sortOrder}. ${p.name} (${p.emoji}) — mealsPerDay=${p.mealsPerDay}, ${p.monthlyPrice} EGP, active=${p.isActive}, id=${p.id}`)
+const subs = await db.subscription.findMany({ include: { _count: { select: { meals: true } } } })
+console.log('SUBSCRIPTIONS:')
+for (const s of subs) console.log(`  ${s.reference} ${s.status}/${s.paymentStatus} — meals chosen: ${s._count.meals}, plan=${s.planId}`)
+console.log('PRODUCTS:', await db.product.count())
+await db.$disconnect()
